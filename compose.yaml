@@ -1,0 +1,146 @@
+name: kaneo
+
+x-daemonless:
+  title: "Kaneo"
+  icon: ":material-view-column-outline:"
+  category: "Productivity"
+  description: "Open-source project management and Kanban board platform built for speed and simplicity."
+  upstream_url: "https://github.com/usekaneo/kaneo"
+  web_url: "https://kaneo.app/"
+  user: "bsd"
+  mlock: false
+  upstream_binary: true
+  community: "Discord:https://discord.gg/Kb9tkhecZT"
+
+  networking:
+    kaneo: default
+    "*": private
+  hostnames:
+    postgres: POSTGRES_HOST
+
+  choices:
+    database:
+      label: Database
+      doc: Where Kaneo keeps its projects and tasks. The default runs its own PostgreSQL.
+      default: builtin
+      options:
+        builtin:
+          label: Built-in PostgreSQL
+          doc: A PostgreSQL of its own, on the private network.
+        external:
+          label: Your own PostgreSQL
+          doc: A PostgreSQL you already run. Create the database and a user with full privileges on it first.
+          drop: [postgres]
+          ask:
+            - name: POSTGRES_HOST
+              label: Host
+            - name: POSTGRES_PORT
+              label: Port
+              default: "5432"
+            - name: POSTGRES_DB
+              label: Database name
+              default: kaneo
+            - name: POSTGRES_USER
+              label: User
+              default: kaneo
+            - name: POSTGRES_PASSWORD
+              label: Password
+              type: secret
+
+  appjail:
+    director:
+      options:
+        - alias:
+        - ip4_inherit:
+    depends_on:
+      - name: postgres
+        image: ghcr.io/daemonless/postgres:18
+        template: postgres-template.conf
+        env:
+          POSTGRES_DB: "!ENV '${POSTGRES_DB}'"
+          POSTGRES_USER: "!ENV '${POSTGRES_USER}'"
+          POSTGRES_PASSWORD: "!ENV '${POSTGRES_PASSWORD}'"
+        volumes:
+          db_data: /var/lib/postgresql/data
+
+  docs:
+    env:
+      PUID: "User ID for the application process"
+      PGID: "Group ID for the application process"
+      TZ:
+        desc: "Timezone for the container"
+        optional: true
+      KANEO_CONFIG_PATH: "Path to store Kaneo configuration and secrets"
+      DB_DATA_LOCATION: "Path to store PostgreSQL data files"
+      KANEO_CLIENT_URL:
+        desc: "URL you will open Kaneo at, e.g. http://myhost:5173 (must match what the browser uses)"
+        public_url: true
+      POSTGRES_HOST:
+        desc: "Where Kaneo finds PostgreSQL (set automatically for the built-in database; 127.0.0.1 on host networking)"
+        level: advanced
+        optional: true
+      POSTGRES_PORT:
+        desc: "PostgreSQL port"
+        level: advanced
+        optional: true
+      POSTGRES_DB:
+        desc: "PostgreSQL database name"
+        level: advanced
+        optional: true
+      POSTGRES_USER:
+        desc: "PostgreSQL database user"
+        level: advanced
+        optional: true
+      POSTGRES_PASSWORD:
+        desc: "PostgreSQL password"
+        level: advanced
+      AUTH_SECRET:
+        desc: "Secret used to sign authentication sessions (generated into /config/secrets.env if unset)"
+        optional: true
+        level: advanced
+    volumes:
+      /config: "Configuration and persistent secrets"
+      /var/lib/postgresql/data: "PostgreSQL database storage"
+    ports:
+      5173: "Web UI"
+
+services:
+  kaneo:
+    image: ghcr.io/daemonless/kaneo:${KANEO_TAG:-latest}
+    container_name: kaneo
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - postgres
+
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - KANEO_CLIENT_URL=${KANEO_CLIENT_URL}
+      - POSTGRES_HOST=${POSTGRES_HOST:-127.0.0.1}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-kaneo}
+      - POSTGRES_USER=${POSTGRES_USER:-kaneo}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - AUTH_SECRET=${AUTH_SECRET:-}
+
+    volumes:
+      - ${KANEO_CONFIG_PATH}:/config
+
+  postgres:
+    image: ghcr.io/daemonless/postgres:18
+    container_name: kaneo-postgres
+    restart: unless-stopped
+    network_mode: host
+
+    annotations:
+      org.freebsd.jail.allow.sysvipc: "true"
+
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-kaneo}
+      - POSTGRES_USER=${POSTGRES_USER:-kaneo}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+    volumes:
+      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data

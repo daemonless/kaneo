@@ -1,0 +1,20 @@
+# dbuild configuration file
+# Place in .daemonless/config.yaml or .dbuild.yaml (higher priority)
+#
+# Full reference: https://github.com/daemonless/dbuild
+
+build:
+  variants:
+    - tag: latest
+      containerfile: Containerfile
+      default: true
+
+cit:
+  mode: screenshot
+  port: 5173
+  health: /api/health
+  ready: "API is ready"
+  screenshot_wait: 5
+  compose: true
+  wait: 180
+  puid: false

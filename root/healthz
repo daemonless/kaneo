@@ -1,0 +1,2 @@
+#!/bin/sh
+fetch -qo - http://127.0.0.1:5173/api/health 2>/dev/null | grep -q '"ok"'

@@ -1,0 +1,28 @@
+# CIT test compose — hardcoded test credentials, safe for CI only
+name: kaneo-test
+
+services:
+  postgres:
+    image: ghcr.io/daemonless/postgres:18
+    network_mode: host
+    annotations:
+      org.freebsd.jail.allow.sysvipc: "true"
+    environment:
+      POSTGRES_DB: kaneo
+      POSTGRES_USER: kaneo
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: "5434"
+
+  kaneo:
+    image: ghcr.io/daemonless/kaneo:build
+    network_mode: host
+    environment:
+      KANEO_CLIENT_URL: http://127.0.0.1:5173
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5434"
+      POSTGRES_DB: kaneo
+      POSTGRES_USER: kaneo
+      POSTGRES_PASSWORD: testpass
+      AUTH_SECRET: cit-test-secret-not-for-production-0123456789abcdef
+    depends_on:
+      - postgres

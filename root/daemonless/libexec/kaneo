@@ -1,0 +1,160 @@
+#!/bin/sh
+set -eu
+
+export HOME=/config
+export NODE_ENV=production
+export TMPDIR=/var/lib/kaneo/tmp
+
+urlencode() {
+  node -e 'const input = process.argv[1]; process.stdout.write(encodeURIComponent(input).replace(/[!\x27()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`));' -- "$1"
+}
+
+check_file_secret() {
+  node -e '
+    const fs = require("node:fs");
+    const [name, file] = process.argv.slice(1);
+    let value;
+    try {
+      value = fs.readFileSync(file, "utf8").replace(/(?:\r?\n)+$/, "");
+    } catch (error) {
+      process.stderr.write(`ERROR: ${name} could not be read (${error.code ?? "unknown"}): ${file}\n`);
+      process.exit(1);
+    }
+    if (!value) {
+      process.stderr.write(`ERROR: ${name} points to an empty file: ${file}\n`);
+      process.exit(1);
+    }
+  ' -- "$1" "$2"
+}
+
+api_pid=""
+nginx_pid=""
+
+cleanup() {
+  if [ -n "$api_pid" ]; then
+    kill "$api_pid" 2>/dev/null || true
+  fi
+
+  if [ -n "$nginx_pid" ]; then
+    kill "$nginx_pid" 2>/dev/null || true
+  fi
+}
+
+trap cleanup EXIT INT TERM
+
+# Default KANEO_CLIENT_URL if unset so KANEO_API_URL points at the bundled nginx proxy
+: "${KANEO_CLIENT_URL:=http://localhost:5173}"
+export KANEO_CLIENT_URL
+
+# Derive KANEO_API_URL from KANEO_CLIENT_URL if not explicitly set
+client_url_trimmed="$(printf '%s' "${KANEO_CLIENT_URL:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+client_url="${client_url_trimmed%/}"
+if [ -z "${KANEO_API_URL:-}" ] && [ -n "$client_url" ]; then
+  export KANEO_API_URL="${client_url}/api"
+  echo "KANEO_API_URL not set — derived from KANEO_CLIENT_URL: $KANEO_API_URL"
+fi
+
+# Derive DATABASE_URL for the bundled image when it is not explicitly set.
+if [ -z "${DATABASE_URL:-}" ]; then
+  POSTGRES_DB="${POSTGRES_DB:-kaneo}"
+  POSTGRES_USER="${POSTGRES_USER:-kaneo}"
+  if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+    encoded_user="$(urlencode "$POSTGRES_USER")"
+    encoded_password="$(urlencode "$POSTGRES_PASSWORD")"
+    export DATABASE_URL="postgresql://${encoded_user}:${encoded_password}@${POSTGRES_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}"
+    echo "DATABASE_URL not set — derived from POSTGRES_* vars"
+  elif [ -n "${POSTGRES_PASSWORD_FILE:-}" ]; then
+    check_file_secret POSTGRES_PASSWORD_FILE "$POSTGRES_PASSWORD_FILE"
+    echo "DATABASE_URL not set — the API derives it from POSTGRES_* vars and POSTGRES_PASSWORD_FILE"
+  else
+    echo "ERROR: DATABASE_URL is not set and POSTGRES_PASSWORD is not set for bundled-image startup" >&2
+    exit 1
+  fi
+fi
+
+# Auto-generate and persist AUTH_SECRET in /config/secrets.env if not set
+if [ -z "${AUTH_SECRET:-}" ] && [ -n "${AUTH_SECRET_FILE:-}" ]; then
+  check_file_secret AUTH_SECRET_FILE "$AUTH_SECRET_FILE"
+elif [ -z "${AUTH_SECRET:-}" ]; then
+  secrets_file=/config/secrets.env
+  if [ -w /config ]; then
+    if [ ! -f "$secrets_file" ]; then
+      (
+        umask 077
+        printf 'AUTH_SECRET=%s\n' "$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')" > "$secrets_file"
+      )
+      echo "[kaneo] Generated AUTH_SECRET in $secrets_file"
+    fi
+    stored_secret="$(sed -n 's/^AUTH_SECRET=//p' "$secrets_file")"
+    export AUTH_SECRET="$stored_secret"
+  else
+    export AUTH_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+    echo "WARNING: AUTH_SECRET not set — generated a random secret for this session."
+  fi
+fi
+
+/docker-entrypoint.d/05-kaneo-runtime-storage.sh
+/docker-entrypoint.d/env.sh
+
+cd /app
+node --enable-source-maps /app/apps/api/dist/index.js &
+api_pid=$!
+
+echo "Waiting for API to be ready..."
+until fetch -qo /dev/null http://127.0.0.1:1337/api/health 2>/dev/null; do
+  if ! kill -0 "$api_pid" 2>/dev/null; then
+    echo "API process exited unexpectedly"
+    exit 1
+  fi
+  sleep 1
+done
+echo "API is ready"
+
+/usr/local/sbin/nginx -c /etc/nginx/nginx.conf -e /dev/stderr -g "daemon off;" &
+nginx_pid=$!
+
+while kill -0 "$api_pid" 2>/dev/null && kill -0 "$nginx_pid" 2>/dev/null; do
+  sleep 1
+done
+
+first_failed_pid=""
+first_failed_status=""
+api_status=""
+nginx_status=""
+
+if ! kill -0 "$api_pid" 2>/dev/null; then
+  wait "$api_pid" || api_status=$?
+  api_status=${api_status:-0}
+  first_failed_pid="$api_pid"
+  first_failed_status="$api_status"
+fi
+
+if [ -z "$first_failed_pid" ] && ! kill -0 "$nginx_pid" 2>/dev/null; then
+  wait "$nginx_pid" || nginx_status=$?
+  nginx_status=${nginx_status:-0}
+  first_failed_pid="$nginx_pid"
+  first_failed_status="$nginx_status"
+fi
+
+cleanup
+
+if [ "$first_failed_pid" != "$api_pid" ]; then
+  wait "$api_pid" || api_status=$?
+fi
+
+if [ "$first_failed_pid" != "$nginx_pid" ]; then
+  wait "$nginx_pid" || nginx_status=$?
+fi
+
+api_status=${api_status:-0}
+nginx_status=${nginx_status:-0}
+
+if [ -n "$first_failed_status" ]; then
+  exit "$first_failed_status"
+fi
+
+if [ "$api_status" -ne 0 ]; then
+  exit "$api_status"
+fi
+
+exit "$nginx_status"

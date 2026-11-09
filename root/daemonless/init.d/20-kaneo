@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+mkdir -p /config /var/lib/kaneo
+
+if [ "$(id -u)" = 0 ]; then
+    chown -R bsd:bsd /config /var/lib/kaneo
+fi
