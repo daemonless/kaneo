@@ -128,6 +128,9 @@ services:
     volumes:
       - ${KANEO_CONFIG_PATH}:/config
 
+    ports:
+      - "5173:5173"
+
   postgres:
     image: ghcr.io/daemonless/postgres:18
     container_name: kaneo-postgres
