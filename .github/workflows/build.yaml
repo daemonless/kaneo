@@ -13,14 +13,6 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: write
-  packages: write
-  attestations: write
-  security-events: write
-  id-token: write
-  actions: read
-
 jobs:
   build:
     uses: daemonless/workflows/.github/workflows/daemonless-build.yaml@v1
