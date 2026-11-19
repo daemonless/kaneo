@@ -21,7 +21,8 @@ RUN pkg update && \
 
 # pnpm >=12 ships only Linux/macOS/Windows native binaries with no JS fallback;
 # pnpm 11 is the last pure-JS release and uses the same v9 lockfile format.
-RUN npm install -g --ignore-scripts pnpm@11
+# 11.28.12+ fails --frozen-lockfile on catalog: overrides; unpin once fixed.
+RUN npm install -g --ignore-scripts pnpm@11.28.11
 
 WORKDIR /build
 RUN KANEO_VERSION=$(fetch -qo - "${UPSTREAM_URL}" | jq -r "${UPSTREAM_JQ}") && \
@@ -111,6 +112,7 @@ LABEL org.opencontainers.image.title="Kaneo" \
       org.opencontainers.image.vendor="daemonless" \
       org.opencontainers.image.authors="daemonless" \
       io.daemonless.category="Productivity" \
+      io.daemonless.port="5173" \
       io.daemonless.volumes="/config" \
       io.daemonless.arch="${FREEBSD_ARCH}" \
       io.daemonless.upstream-url="${UPSTREAM_URL}" \
@@ -148,6 +150,7 @@ RUN chmod +x /docker-entrypoint.d/05-kaneo-runtime-storage.sh \
 CMD ["/daemonless/libexec/kaneo"]
 
 # --- Expose (Injected by Generator) ---
+EXPOSE 5173
 
 # --- Volumes (Injected by Generator) ---
 VOLUME /config
