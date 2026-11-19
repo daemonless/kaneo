@@ -1,11 +1,11 @@
 {
-  "generated": "2026-11-09T10:24:39Z",
+  "generated": "2026-11-19T23:34:43Z",
   "image": "kaneo",
   "tags": {
     "latest": {
-      "app_version": "2.49.0",
+      "app_version": "2.50.0",
       "arch": "amd64",
-      "generated": "2026-11-09T10:23:40Z",
+      "generated": "2026-11-19T23:33:59Z",
       "packages": {
         "dotnet": [],
         "freebsd": [
@@ -402,7 +402,7 @@
               "BSD2CLAUSE"
             ],
             "name": "pkg",
-            "version": "2.8.4"
+            "version": "2.9.2"
           },
           {
             "licenses": [
@@ -656,7 +656,7 @@
           {
             "name": "@hono/node-server",
             "purl": "",
-            "version": "2.1.5"
+            "version": "2.1.7"
           },
           {
             "name": "@hono/node-ws",
@@ -761,7 +761,7 @@
           {
             "name": "@noble/hashes",
             "purl": "",
-            "version": "2.0.1"
+            "version": "2.2.0"
           },
           {
             "name": "@octokit/app",
@@ -966,7 +966,7 @@
           {
             "name": "@smithy/core",
             "purl": "",
-            "version": "3.35.0"
+            "version": "3.37.0"
           },
           {
             "name": "@smithy/credential-provider-imds",
@@ -1491,7 +1491,7 @@
           {
             "name": "hono",
             "purl": "",
-            "version": "4.13.14"
+            "version": "4.13.18"
           },
           {
             "name": "html-to-text",
@@ -1616,7 +1616,7 @@
           {
             "name": "kaneo",
             "purl": "",
-            "version": "2.49.0"
+            "version": "2.50.0"
           },
           {
             "name": "kleur",
@@ -2246,7 +2246,7 @@
           {
             "name": "ws",
             "purl": "",
-            "version": "8.21.0"
+            "version": "8.21.3"
           },
           {
             "name": "wsl-utils",

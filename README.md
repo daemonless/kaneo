@@ -13,6 +13,7 @@ Open-source project management and Kanban board platform built for speed and sim
 
 | | |
 |---|---|
+| **Port** | 5173 |
 | **Registry** | `ghcr.io/daemonless/kaneo` |
 | **Source** | [https://github.com/usekaneo/kaneo](https://github.com/usekaneo/kaneo) |
 | **Website** | [https://kaneo.app/](https://kaneo.app/) |
@@ -93,6 +94,9 @@ services:
     volumes:
       - ${KANEO_CONFIG_PATH}:/config
 
+    ports:
+      - "5173:5173"
+
   postgres:
     image: ghcr.io/daemonless/postgres:18
     container_name: kaneo-postgres
@@ -169,6 +173,9 @@ services:
 
     volumes:
       - ${KANEO_CONFIG_PATH}:/config
+
+    ports:
+      - "5173:5173"
 ```
 
 Then run `podman-compose up -d`.
@@ -330,6 +337,7 @@ OPTION from=ghcr.io/daemonless/kaneo:${tag}
 ```
 
 Save the files above, then run `appjail-director up`.
+Open `http://<server>:5173` from another machine (the server's own browser can't use a published port).
 
 ## Parameters
 
@@ -355,6 +363,12 @@ Save the files above, then run `appjail-director up`.
 | Path | Description |
 |------|-------------|
 | `/config` | Configuration and persistent secrets |
+
+### Ports
+
+| Port | Protocol | Description |
+|------|----------|-------------|
+| `5173` | TCP | Web UI |
 
 **Architectures:** amd64
 **User:** `bsd` (UID/GID via PUID/PGID, defaults to 1000:1000)
